@@ -26,6 +26,63 @@ public:
 	}
 };
 
+
+class OrientationCubeRenderPass : public vtkRenderPass {
+private:
+	class ImagePass :public vtkRenderPass {
+	public:
+		static ImagePass* New() {
+			return new ImagePass();
+		}
+		OrientationCubeRenderPass *outer;
+		void Render(const vtkRenderState* s) {
+			outer->actorDaImagem->Render(s->GetRenderer());
+		}
+	};
+
+	class CubePass :public vtkRenderPass {
+	public:
+		static CubePass* New() {
+			return new CubePass();
+		}
+		OrientationCubeRenderPass *outer;
+		void Render(const vtkRenderState* s) {
+			outer->actorDoCubo->Render(s->GetRenderer(), outer->actorDoCubo->GetMapper());
+		}
+	};
+
+	vtkActor* actorDoCubo;
+	vtkImageActor* actorDaImagem;
+	vtkSmartPointer<vtkLightsPass> lightsPass;
+	vtkSmartPointer<ImagePass> imagePass;
+	vtkSmartPointer<CubePass> cubePass;
+
+	OrientationCubeRenderPass() {
+		lightsPass = vtkSmartPointer<vtkLightsPass>::New();
+		imagePass = vtkSmartPointer<ImagePass>::New();
+		imagePass->outer = this;
+		cubePass = vtkSmartPointer<CubePass>::New();
+		cubePass->outer = this;
+	}
+public:
+	static OrientationCubeRenderPass *New() {
+		return new OrientationCubeRenderPass();
+	}
+
+	void Render(const vtkRenderState* s) {
+		lightsPass->Render(s);
+		imagePass->Render(s);
+		cubePass->Render(s);
+//		actorDaImagem->Render(s->GetRenderer());
+//		actorDoCubo->RenderOverlay(s->GetRenderer());
+		//actorDoCubo->Render(s->GetRenderer(), actorDoCubo->GetMapper());
+	}
+	void SetActorsRelevantes(vtkActor* doCubo, vtkImageActor* daImagem) {
+		actorDoCubo = doCubo;
+		actorDaImagem = daImagem;
+	}
+};
+
 class OrientationCubeMK2 {
 private:
 	vtkRenderer* renderer;
@@ -34,6 +91,7 @@ private:
 	vtkSmartPointer<vtkImageSlabReslice> thickSlabReslice;
 	vtkSmartPointer<vtkImageMapToWindowLevelColors> colorMap;
 	vtkSmartPointer<vtkImageActor> actorDaImagem;
+	vtkSmartPointer<OrientationCubeRenderPass> renderPass;
 	void setup() {
 		if (!renderer || !image)
 			return;
@@ -83,6 +141,12 @@ private:
 		actorDaImagem->SetInputData(colorMap->GetOutput());
 		actorDaImagem->SetPosition(image->GetOutput()->GetCenter());
 		renderer->AddActor(actorDaImagem);
+		//setup do renderpass
+		renderPass = vtkSmartPointer<OrientationCubeRenderPass>::New();
+		renderPass->SetActorsRelevantes(cubeActor, actorDaImagem);
+		auto cameraPass = vtkSmartPointer<vtkCameraPass>::New();
+		cameraPass->SetDelegatePass(renderPass);
+		vtkOpenGLRenderer::SafeDownCast(renderer)->SetPass(cameraPass);
 	}
 public:
 	OrientationCubeMK2() {
@@ -92,6 +156,7 @@ public:
 		thickSlabReslice = nullptr;
 		colorMap = nullptr;
 		actorDaImagem = nullptr;
+		renderPass = nullptr;
 	}
 	void SetRenderer(vtkRenderer* ren) {
 		renderer = ren;
@@ -102,8 +167,6 @@ public:
 		setup();
 	}
 };
-
-
 
 int main(int argc, char** argv) {
 	///Carga da imagem

@@ -1,5 +1,6 @@
 #pragma once
 #define _SCL_SECURE_NO_WARNINGS
+#include <vtkOpenGLActor.h>
 #include <vtkImageMapToWindowLevelColors.h>
 #include <vtkWin32RenderWindowInteractor.h>
 #include <vtkObject.h>
