@@ -478,7 +478,10 @@ void myInteractorStyleTrackballActor::Spin()
 	{
 		this->CurrentRenderer->ResetCameraClippingRange();
 	}
-
+	//Agora que o actor está com uma nova orientação é hora de fazer o reslice, usando a orientação 
+	//nova do actor.
+	orientator->UpdateReslice();
+	//agora renderiza
 	rwi->Render();
 }
 
