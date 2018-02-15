@@ -38,7 +38,7 @@ void myInteractorStyleTrackballActor::SetOperacao(int idBotao, int operacao)
 myInteractorStyleTrackballActor::myInteractorStyleTrackballActor()
 {
 	orientator = nullptr;
-	this->MotionFactor = 10.0;
+	this->MotionFactor = 1.0;
 	this->InteractionProp = nullptr;
 	this->InteractionPicker = vtkCellPicker::New();
 	this->InteractionPicker->SetTolerance(0.001);
@@ -534,6 +534,12 @@ void myInteractorStyleTrackballActor::Pan()
 			this->InteractionProp->GetPosition()[1] + motion_vector[1],
 			this->InteractionProp->GetPosition()[2] + motion_vector[2] ,} };
 		this->InteractionProp->SetPosition(newPos.data());
+
+		std::cout << "  POSITION = " << InteractionProp->GetPosition()[0] << ", "
+			<< InteractionProp->GetPosition()[1] << ", "
+			<< InteractionProp->GetPosition()[2] << std::endl;
+
+		//Aplica na camera
 		auto camera = this->CurrentRenderer->GetActiveCamera();
 		std::array<double,3> newCameraPos = { {
 				camera->GetPosition()[0] + motion_vector[0],
@@ -551,7 +557,9 @@ void myInteractorStyleTrackballActor::Pan()
 	if (this->AutoAdjustCameraClippingRange){
 		this->CurrentRenderer->ResetCameraClippingRange();
 	}
-	
+	//Agora que o actor está com uma nova orientação é hora de fazer o reslice, usando a orientação 
+	//nova do actor.
+	//orientator->UpdateReslice();
 	rwi->Render();
 }
 

@@ -147,6 +147,10 @@ private:
 		actorDaImagem->SetInputData(colorMap->GetOutput());
 		actorDaImagem->SetPosition(image->GetOutput()->GetCenter());
 		renderer->AddActor(actorDaImagem);
+		renderer->ResetCamera();
+		renderer->GetActiveCamera()->ParallelProjectionOn();
+		
+		double v = renderer->GetActiveCamera()->GetParallelScale();
 		//setup do renderpass
 		renderPass = vtkSmartPointer<OrientationCubeRenderPass>::New();
 		renderPass->SetActorsRelevantes(cubeActor, actorDaImagem);
@@ -204,7 +208,11 @@ public:
 		//configura o novo estado do reslicer
 		thickSlabReslice->SetBackgroundLevel(GetBackgroundLevel());
 		vtkSmartPointer<vtkTransform> transformTrans = vtkSmartPointer<vtkTransform>::New();
-		transformTrans->Translate(actorDaImagem->GetPosition());
+		std::cout << "  POSITION = " << cubeActor->GetPosition()[0] << ", "
+			<< cubeActor->GetPosition()[1] << ", "
+			<< cubeActor->GetPosition()[2] << std::endl;
+
+		transformTrans->Translate(cubeActor->GetPosition());
 		transformTrans->Update();
 		vtkSmartPointer<vtkTransform> transformRot = vtkSmartPointer<vtkTransform>::New();
 		transformRot->RotateWXYZ(cubeActor->GetOrientationWXYZ()[0], cubeActor->GetOrientationWXYZ()[1], cubeActor->GetOrientationWXYZ()[2], cubeActor->GetOrientationWXYZ()[3]);
@@ -244,7 +252,7 @@ public:
 		colorMap->SetLevel(level);
 		colorMap->Update();
 		//debug
-		DebugSave();
+		//DebugSave();
 	}
 };
 
@@ -262,7 +270,7 @@ int main(int argc, char** argv) {
 	rendererDaCamadaDaImagem->GetActiveCamera()->ParallelProjectionOn();
 	rendererDaCamadaDaImagem->SetBackground(0.1, 0.2, 0.4);
 	rendererDaCamadaDaImagem->ResetCamera();
-	rendererDaCamadaDaImagem->GetActiveCamera()->Zoom(1.5);
+	//rendererDaCamadaDaImagem->GetActiveCamera()->Zoom(1.5);
 	rendererDaCamadaDaImagem->SetLayer(0);
 	rendererDaCamadaDaImagem->SetBackground(1, 0, 0);
 	vtkSmartPointer<vtkWin32OpenGLRenderWindow> renderWindow = vtkSmartPointer<vtkWin32OpenGLRenderWindow>::New();
