@@ -534,6 +534,19 @@ void myInteractorStyleTrackballActor::Pan()
 			this->InteractionProp->GetPosition()[1] + motion_vector[1],
 			this->InteractionProp->GetPosition()[2] + motion_vector[2] ,} };
 		this->InteractionProp->SetPosition(newPos.data());
+		auto camera = this->CurrentRenderer->GetActiveCamera();
+		std::array<double,3> newCameraPos = { {
+				camera->GetPosition()[0] + motion_vector[0],
+				camera->GetPosition()[1] + motion_vector[1],
+				camera->GetPosition()[2] + motion_vector[2],
+			} };
+		std::array<double,3> newCameraFocus = { {
+				camera->GetFocalPoint()[0] + motion_vector[0],
+				camera->GetFocalPoint()[1] + motion_vector[1],
+				camera->GetFocalPoint()[2] + motion_vector[2],
+		} };
+		camera->SetPosition(newCameraPos.data());
+		camera->SetFocalPoint(newCameraFocus.data());
 	}
 	if (this->AutoAdjustCameraClippingRange){
 		this->CurrentRenderer->ResetCameraClippingRange();
