@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "loadVolume.h"
 #include "utils.h"
+#include "myInteractorStyleTrackballActor.h"
+#include "IOrientator.h"
 class ObserveLoadProgressCommand : public itk::Command
 {
 public:
@@ -73,9 +75,6 @@ public:
 		lightsPass->Render(s);
 		imagePass->Render(s);
 		cubePass->Render(s);
-//		actorDaImagem->Render(s->GetRenderer());
-//		actorDoCubo->RenderOverlay(s->GetRenderer());
-		//actorDoCubo->Render(s->GetRenderer(), actorDoCubo->GetMapper());
 	}
 	void SetActorsRelevantes(vtkActor* doCubo, vtkImageActor* daImagem) {
 		actorDoCubo = doCubo;
@@ -83,8 +82,15 @@ public:
 	}
 };
 
-class OrientationCubeMK2 {
+class OrientationCubeMK2 : public IOrientator {
+public:
+	enum Interpolacao { NearestNeighbour, Linear, Cubic };
+	enum Funcao { MIP, MinP, Composite };
 private:
+	Interpolacao tipoInterpolacao;
+	Funcao tipoFuncao;
+	double thickness;
+	double window, level;
 	vtkRenderer* renderer;
 	vtkImageImport *image;
 	vtkSmartPointer<vtkActor> cubeActor;
@@ -115,8 +121,8 @@ private:
 		//criação do algoritmo do window/level
 		colorMap = vtkSmartPointer<vtkImageMapToWindowLevelColors>::New();
 		colorMap->SetInputConnection(thickSlabReslice->GetOutputPort());
-		colorMap->SetWindow(350);
-		colorMap->SetLevel(50);
+		colorMap->SetWindow(window);
+		colorMap->SetLevel(level);
 		//criação do cube actor;
 		auto cubeSource = vtkSmartPointer<vtkCubeSource>::New();
 		cubeSource->SetXLength(100);
@@ -148,6 +154,22 @@ private:
 		cameraPass->SetDelegatePass(renderPass);
 		vtkOpenGLRenderer::SafeDownCast(renderer)->SetPass(cameraPass);
 	}
+	const short GetBackgroundLevel()const {
+		double range[2];
+		vtkImageData::SafeDownCast(thickSlabReslice->GetInput())->GetScalarRange(range);
+		return range[0];
+	}
+	void DebugSave() {
+		boost::posix_time::ptime current_date_microseconds = boost::posix_time::microsec_clock::local_time();
+		long milliseconds = current_date_microseconds.time_of_day().total_milliseconds();
+		std::string filename = "c:\\reslice_cubico_mk3\\dump\\" + boost::lexical_cast<std::string>(milliseconds) + ".vti";
+		vtkSmartPointer<vtkXMLImageDataWriter> debugsave = vtkSmartPointer<vtkXMLImageDataWriter>::New();
+		debugsave->SetFileName(filename.c_str());
+		debugsave->SetInputData(thickSlabReslice->GetOutput());
+		debugsave->BreakOnError();
+		debugsave->Write();
+	}
+	
 public:
 	OrientationCubeMK2() {
 		renderer = nullptr;
@@ -157,6 +179,11 @@ public:
 		colorMap = nullptr;
 		actorDaImagem = nullptr;
 		renderPass = nullptr;
+		tipoInterpolacao = Linear;
+		tipoFuncao = Composite;
+		thickness = 1.0;
+		window = 350;
+		level = 50;
 	}
 	void SetRenderer(vtkRenderer* ren) {
 		renderer = ren;
@@ -165,6 +192,59 @@ public:
 	void SetImage(vtkImageImport *img) {
 		image = img;
 		setup();
+	}
+
+	void UpdateReslice() {
+		//se ainda não criou as coisas tenta criar e retorna. Só deve rodar
+		//quando estiver estável.
+		if (!thickSlabReslice) {
+			setup();
+			return;
+		}
+		//configura o novo estado do reslicer
+		thickSlabReslice->SetBackgroundLevel(GetBackgroundLevel());
+		vtkSmartPointer<vtkTransform> transformTrans = vtkSmartPointer<vtkTransform>::New();
+		transformTrans->Translate(actorDaImagem->GetPosition());
+		transformTrans->Update();
+		vtkSmartPointer<vtkTransform> transformRot = vtkSmartPointer<vtkTransform>::New();
+		transformRot->RotateWXYZ(cubeActor->GetOrientationWXYZ()[0], cubeActor->GetOrientationWXYZ()[1], cubeActor->GetOrientationWXYZ()[2], cubeActor->GetOrientationWXYZ()[3]);
+		transformRot->Inverse();
+		transformTrans->Concatenate(transformRot);
+		thickSlabReslice->SetResliceTransform(transformTrans);
+		switch (tipoInterpolacao) {
+		case NearestNeighbour:
+			thickSlabReslice->SetInterpolationModeToNearestNeighbor();
+			break;
+		case Linear:
+			thickSlabReslice->SetInterpolationModeToLinear();
+			break;
+		case Cubic:
+			thickSlabReslice->SetInterpolationModeToCubic();
+			break;
+		}
+		switch (tipoFuncao) {
+		case MIP:
+			thickSlabReslice->SetBlendModeToMax();
+			break;
+		case MinP:
+			thickSlabReslice->SetBlendModeToMin();
+			break;
+		case Composite:
+			thickSlabReslice->SetBlendModeToMean();
+			break;
+		}
+		thickSlabReslice->SetSlabThickness(thickness);
+		thickSlabReslice->Update();
+		//teste pra ver se tudo está ok. Se der um extent inválido é tem algo errado e
+		//tem que abortar
+		vtkImageData* resultado = thickSlabReslice->GetOutput();
+		assert(resultado->GetExtent()[1] != -1);
+		//agora configura o window/Level
+		colorMap->SetWindow(window);
+		colorMap->SetLevel(level);
+		colorMap->Update();
+		//debug
+		DebugSave();
 	}
 };
 
@@ -191,13 +271,19 @@ int main(int argc, char** argv) {
 	renderWindow->AddRenderer(rendererDaCamadaDaImagem);
 	vtkSmartPointer<vtkRenderWindowInteractor> renderWindowInteractor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
 	renderWindowInteractor->SetRenderWindow(renderWindow);
-	auto style = vtkSmartPointer<vtkInteractorStyleTrackballActor>::New();
+	auto style = vtkSmartPointer<myInteractorStyleTrackballActor>::New();
+	style->SetOperacao(0, VTKIS_ROTATE);
+	style->SetOperacao(1, VTKIS_SPIN);
+	style->SetOperacao(2, VTKIS_PAN);
 	renderWindowInteractor->SetInteractorStyle(style);
-	renderWindow->Render();
 	//Cria o reslice cubico
 	OrientationCubeMK2 *cube = new OrientationCubeMK2();
 	cube->SetRenderer(rendererDaCamadaDaImagem);
 	cube->SetImage(imagemImportadaPraVTK);
+	//passa o cubo pro style
+	style->SetOrientator(cube);
+	//agora renderiza
+	renderWindow->Render();
 	//A tela dummy PROS PROBLEMAS DO OPENGL
 	vtkSmartPointer<vtkRenderer> rendererDummy = vtkSmartPointer<vtkRenderer>::New();
 	vtkSmartPointer<vtkRenderWindow> renderWindowDummy = vtkSmartPointer<vtkRenderWindow>::New();
